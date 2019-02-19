@@ -1,43 +1,35 @@
 import os
 import torch
 import argparse
-from maskrcnn_benchmark.config import cfg
-from maskrcnn_benchmark.utils.c2_model_loading import load_c2_format
+from maskrcnn_benchmark.utils.model_serialization import strip_prefix_if_present
 
 
-parser = argparse.ArgumentParser(description="Trim Detectron weights and save in PyTorch format.")
+parser = argparse.ArgumentParser(description="Trim RetinaNet weights and save in .pth format.")
 parser.add_argument(
     "--pretrained_path",
     default="",
-    help="path to detectron pretrained weight(.pkl)",
+    help="path to RetinaNet pretrained weight(.pth)",
     type=str)
 parser.add_argument(
     "--save_path",
     default="",
     help="path to save the converted model",
     type=str)
-parser.add_argument(
-    "--cfg",
-    default="",
-    help="path to config file",
-    type=str)
 
 
 def removekey(d, listofkeys):
-    r = dict(d)
     for key in listofkeys:
         print('key: {} is removed'.format(key))
-        r.pop(key)
-    return r
+        d.pop(key)
+    return d
 
 
 args = parser.parse_args()
-DETECTRON_PATH = os.path.expanduser(args.pretrained_path)
-print('Detectron path: {}'.format(DETECTRON_PATH))
+retinanet_pretrained_path = os.path.expanduser(args.pretrained_path)
+print('RetinaNet path: {}'.format(retinanet_pretrained_path))
 
-# cfg.merge_from_file(args.cfg)
-# _d = load_c2_format(cfg, DETECTRON_PATH)
-_d = torch.load(DETECTRON_PATH)
+_d = torch.load(retinanet_pretrained_path, map_location=torch.device("cpu"))
+_d['model'] = strip_prefix_if_present(_d['model'], prefix='module.')
 newdict = _d
 
 keys_to_be_removed = [
