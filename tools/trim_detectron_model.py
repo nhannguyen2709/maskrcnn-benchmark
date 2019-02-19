@@ -35,8 +35,9 @@ args = parser.parse_args()
 DETECTRON_PATH = os.path.expanduser(args.pretrained_path)
 print('Detectron path: {}'.format(DETECTRON_PATH))
 
-cfg.merge_from_file(args.cfg)
-_d = load_c2_format(cfg, DETECTRON_PATH)
+# cfg.merge_from_file(args.cfg)
+# _d = load_c2_format(cfg, DETECTRON_PATH)
+_d = torch.load(DETECTRON_PATH)
 newdict = _d
 
 keys_to_be_removed = [
