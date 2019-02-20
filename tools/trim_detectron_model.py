@@ -39,5 +39,9 @@ keys_to_be_removed = [
     'rpn.head.bbox_pred.weight',] # retinanet_X-101-32x8d-FPN_1x_model
 newdict['model'] = removekey(_d['model'],
                              keys_to_be_removed)
+
+# Reset iteration to 0 for re-training on new data
+newdict['iteration'] = 0
+
 torch.save(newdict, args.save_path)
 print('Saved to {}.'.format(args.save_path))
