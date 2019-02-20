@@ -2,5 +2,6 @@
 from .coco import COCODataset
 from .voc import PascalVOCDataset
 from .concat_dataset import ConcatDataset
+from .deepdrive import DeepDriveDataset
 
-__all__ = ["COCODataset", "ConcatDataset", "PascalVOCDataset"]
+__all__ = ["COCODataset", "ConcatDataset", "PascalVOCDataset", "DeepDriveDataset"]
