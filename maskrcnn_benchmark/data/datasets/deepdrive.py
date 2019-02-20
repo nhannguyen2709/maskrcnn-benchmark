@@ -69,7 +69,8 @@ class DeepDriveDataset(torch.utils.data.Dataset):
         gt_classes = []
         occluded_boxes = []
         TO_REMOVE = 1
-        
+        # Filter out segmentation annotations
+        target = [label for label in target if "box2d" in label.keys()]
         for obj in target:
             occluded = obj['attributes']['occluded'] == 1
             # Use to filter occluded boxes
