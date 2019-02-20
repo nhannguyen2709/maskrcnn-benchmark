@@ -31,6 +31,16 @@ class DatasetCatalog(object):
             "img_dir": "coco/val2014",
             "ann_file": "coco/annotations/instances_valminusminival2014.json"
         },
+        "deepdrive_train": {
+            "data_dir": "bdd100k/",
+            "labels_dir": "labels/bdd100k_labels_images_train.json",
+            "split": "train"
+        },
+        "deepdrive_val": {
+            "data_dir": "bdd100k/",
+            "labels_dir": "labels/bdd100k_labels_images_val.json",
+            "split": "val"
+        },
         "keypoints_coco_2014_train": {
             "img_dir": "coco/train2014",
             "ann_file": "coco/annotations/person_keypoints_train2014.json",
@@ -129,6 +139,18 @@ class DatasetCatalog(object):
             return dict(
                 factory="PascalVOCDataset",
                 args=args,
+            )
+        elif "deepdrive" in name:
+            data_dir = DatasetCatalog.DATA_DIR
+            attrs = DatasetCatalog.DATASETS[name]
+            args = dict(
+                data_dir=os.path.join(data_dir, attrs["data_dir"]),
+                labels_dir=attrs["labels_dir"],
+                split=attrs["split"]
+            )
+            return dict(
+                factory="DeepDriveDataset",
+                args=args
             )
         raise RuntimeError("Dataset not available: {}".format(name))
 
