@@ -40,8 +40,10 @@ keys_to_be_removed = [
 newdict['model'] = removekey(_d['model'],
                              keys_to_be_removed)
 
-# Reset iteration to 0 for re-training on new data
-newdict['iteration'] = 0
+# Remove saved optimizer, iteration and scheduler
+newdict.pop('optimizer')
+newdict.pop('iteration')
+newdict.pop('scheduler')
 
 torch.save(newdict, args.save_path)
 print('Saved to {}.'.format(args.save_path))
