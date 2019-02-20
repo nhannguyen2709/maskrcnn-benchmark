@@ -101,9 +101,7 @@ class DeepDriveDataset(torch.utils.data.Dataset):
         return res
 
     def get_img_info(self, index):
-        img_id = self.ids[index]
-        img = Image.open(self._imgpath % img_id).convert("RGB")
-        return {"height": img.size[0], "width": img.size[1]}
+        return {"height": 720, "width": 1280}
 
     def map_class_id_to_class_name(self, class_id):
         return DeepDriveDataset.CLASSES[class_id]
