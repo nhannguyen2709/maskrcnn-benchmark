@@ -44,16 +44,7 @@ class DeepDriveDataset(torch.utils.data.Dataset):
         img_id = self.ids[index]
         img = Image.open(self._imgpath % img_id).convert("RGB")
 
-        # get groundtruth
-        img_id = self.ids[index]
-        anno = list(filter(
-            lambda annotations: annotations['name'] == img_id, self.annotations))[0]
-        anno = self._preprocess_annotation(anno['labels'])
-
-        width, height = img.size
-        target = BoxList(anno["boxes"], (width, height), mode="xyxy")
-        target.add_field("labels", anno["labels"])
-        target.add_field("occluded", anno["occluded"])
+        target = self.get_groundtruth(index)
         target = target.clip_to_image(remove_empty=True)
 
         if self.transforms is not None:
@@ -63,6 +54,18 @@ class DeepDriveDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.ids)
+
+    def get_groundtruth(self, index):
+        img_id = self.ids[index]
+        anno = list(filter(
+            lambda annotations: annotations['name'] == img_id, self.annotations))[0]
+        anno = self._preprocess_annotation(anno['labels'])
+
+        height, width = anno["im_info"]
+        target = BoxList(anno["boxes"], (width, height), mode="xyxy")
+        target.add_field("labels", anno["labels"])
+        target.add_field("occluded", anno["occluded"])
+        return target
 
     def _preprocess_annotation(self, target):
         boxes = []
@@ -98,6 +101,7 @@ class DeepDriveDataset(torch.utils.data.Dataset):
             "boxes": torch.tensor(boxes, dtype=torch.float32),
             "labels": torch.tensor(gt_classes),
             "occluded": torch.tensor(occluded_boxes),
+            "im_info": (720, 1280)
         }
         return res
 
