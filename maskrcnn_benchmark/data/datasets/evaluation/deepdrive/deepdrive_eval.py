@@ -81,7 +81,7 @@ def calc_detection_deepdrive_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.7
         pred_score = pred_boxlist.get_field("scores").numpy()
         gt_bbox = gt_boxlist.bbox.numpy()
         gt_label = gt_boxlist.get_field("labels").numpy()
-        gt_difficult = gt_boxlist.get_field("difficult").numpy()
+        gt_occluded = gt_boxlist.get_field("occluded").numpy()
 
         for l in np.unique(np.concatenate((pred_label, gt_label)).astype(int)):
             pred_mask_l = pred_label == l
@@ -94,9 +94,9 @@ def calc_detection_deepdrive_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.7
 
             gt_mask_l = gt_label == l
             gt_bbox_l = gt_bbox[gt_mask_l]
-            gt_difficult_l = gt_difficult[gt_mask_l]
+            gt_occluded_l = gt_occluded[gt_mask_l]
 
-            n_pos[l] += np.logical_not(gt_difficult_l).sum()
+            n_pos[l] += np.logical_not(gt_occluded_l).sum()
             score[l].extend(pred_score_l)
 
             if len(pred_bbox_l) == 0:
@@ -122,7 +122,7 @@ def calc_detection_deepdrive_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.7
             selec = np.zeros(gt_bbox_l.shape[0], dtype=bool)
             for gt_idx in gt_index:
                 if gt_idx >= 0:
-                    if gt_difficult_l[gt_idx]:
+                    if gt_occluded_l[gt_idx]:
                         match[l].append(-1)
                     else:
                         if not selec[gt_idx]:
