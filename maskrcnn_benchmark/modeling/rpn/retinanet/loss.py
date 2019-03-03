@@ -26,7 +26,8 @@ class RetinaNetLossComputation(RPNLossComputation):
                  generate_labels_func,
                  sigmoid_focal_loss,
                  bbox_reg_beta=0.11,
-                 regress_norm=1.0):
+                 regress_norm=1.0,
+                 consistency=True):
         """
         Arguments:
             proposal_matcher (Matcher)
@@ -40,11 +41,11 @@ class RetinaNetLossComputation(RPNLossComputation):
         self.generate_labels_func = generate_labels_func
         self.discard_cases = ['between_thresholds']
         self.regress_norm = regress_norm
+        self.consistency = consistency
 
     @torch.no_grad()
-    def __obtain_refined_anchors(self, anchors, box_cls, box_regression, targets):
+    def _obtain_refined_anchors(self, anchors, box_cls, box_regression, targets):
         N = len(anchors)
-
         refined_anchors = [] # (list[BoxList])
         reshaped_box_regression = box_regression.reshape(N, -1, 4)
         for box_regression_per_image, anchors_per_image in zip(
@@ -52,8 +53,7 @@ class RetinaNetLossComputation(RPNLossComputation):
             refined_anchors_per_image = self.box_coder.decode(box_regression_per_image, anchors_per_image.bbox)
             boxlist = BoxList(refined_anchors_per_image, anchors_per_image.size, mode='xyxy')
             refined_anchors.append(boxlist)
-        refined_labels, refined_regression_targets = self.prepare_targets(refined_anchors, targets)
-            
+        refined_labels, refined_regression_targets = self.prepare_targets(refined_anchors, targets)       
         return refined_labels, refined_regression_targets
 
     def __call__(self, anchors, box_cls, box_regression, targets):
@@ -94,26 +94,28 @@ class RetinaNetLossComputation(RPNLossComputation):
         ) / (pos_inds.numel() + N)
 
         # Consistency optimization loss here
-        refined_labels, refined_regression_targets = self.__obtain_refined_anchors(anchors, box_cls, box_regression, targets)
-        refined_labels = torch.cat(refined_labels, dim=0)
-        refined_regression_targets = torch.cat(refined_regression_targets, dim=0)
-        refined_pos_inds = torch.nonzero(refined_labels > 0).squeeze(1)
+        if self.consistency:
+            refined_labels, refined_regression_targets = self._obtain_refined_anchors(anchors, box_cls, box_regression, targets)
+            refined_labels = torch.cat(refined_labels, dim=0)
+            refined_regression_targets = torch.cat(refined_regression_targets, dim=0)
+            refined_pos_inds = torch.nonzero(refined_labels > 0).squeeze(1)
 
-        refined_regression_loss = smooth_l1_loss(
-            box_regression[refined_pos_inds],
-            refined_regression_targets[refined_pos_inds],
-            beta=self.bbox_reg_beta,
-            size_average=False,
-        ) / (max(1, refined_pos_inds.numel() * self.regress_norm))
+            refined_regression_loss = smooth_l1_loss(
+                box_regression[refined_pos_inds],
+                refined_regression_targets[refined_pos_inds],
+                beta=self.bbox_reg_beta,
+                size_average=False,
+            ) / (max(1, refined_pos_inds.numel() * self.regress_norm))
 
-        refined_labels = refined_labels.int()
+            refined_labels = refined_labels.int()
 
-        refined_cls_loss = self.box_cls_loss_func(
-            box_cls,
-            refined_labels
-        ) / (refined_pos_inds.numel() + N)
-
-        return retinanet_cls_loss, retinanet_regression_loss, refined_regression_loss, refined_cls_loss
+            refined_cls_loss = self.box_cls_loss_func(
+                box_cls,
+                refined_labels
+            ) / (refined_pos_inds.numel() + N)
+            return retinanet_cls_loss, retinanet_regression_loss, refined_cls_loss, refined_regression_loss
+        else:
+            return retinanet_cls_loss, retinanet_regression_loss
 
 
 def generate_retinanet_labels(matched_targets):
@@ -139,5 +141,6 @@ def make_retinanet_loss_evaluator(cfg, box_coder):
         sigmoid_focal_loss,
         bbox_reg_beta = cfg.MODEL.RETINANET.BBOX_REG_BETA,
         regress_norm = cfg.MODEL.RETINANET.BBOX_REG_WEIGHT,
+        consistency = cfg.MODEL.RETINANET.CONSISTENCY,
     )
     return loss_evaluator
