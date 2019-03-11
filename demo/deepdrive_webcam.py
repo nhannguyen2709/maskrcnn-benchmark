@@ -17,6 +17,11 @@ def main():
         help="path to config file",
     )
     parser.add_argument(
+        "--img-file",
+        metavar="FILE",
+        help="path to image file",
+    )
+    parser.add_argument(
         "--confidence-threshold",
         type=float,
         default=0.7,
@@ -64,15 +69,13 @@ def main():
         min_image_size=args.min_image_size,
     )
 
-    cam = cv2.VideoCapture(0)
-    while True:
-        start_time = time.time()
-        ret_val, img = cam.read()
-        composite = coco_demo.run_on_opencv_image(img)
-        print("Time: {:.2f} s / img".format(time.time() - start_time))
-        cv2.imshow("DeepDrive detections", composite)
-        if cv2.waitKey(1) == 27:
-            break  # esc to quit
+    start_time = time.time()
+    img = cv2.imread(args.img_file)
+    composite = coco_demo.run_on_opencv_image(img)
+    print("Time: {:.2f} s / img".format(time.time() - start_time))
+    cv2.imshow("DeepDrive detections", composite)
+    if cv2.waitKey(1) == 27:
+        break  # esc to quit
     cv2.destroyAllWindows()
 
 
