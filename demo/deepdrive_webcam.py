@@ -74,9 +74,6 @@ def main():
     composite = coco_demo.run_on_opencv_image(img)
     print("Time: {:.2f} s / img".format(time.time() - start_time))
     cv2.imshow("DeepDrive detections", composite)
-    if cv2.waitKey(1) == 27:
-        break  # esc to quit
-    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
