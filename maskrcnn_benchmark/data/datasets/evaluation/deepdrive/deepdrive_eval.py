@@ -1,4 +1,4 @@
-# Copy from VOC evaluation script. IoU threshold = 0.75
+# Copy from VOC evaluation script. IoU threshold = 0.7
 # (See https://github.com/ucbdrive/bdd-data/blob/master/doc/evaluation.md)
 from __future__ import division
 
@@ -28,7 +28,7 @@ def do_deepdrive_evaluation(dataset, predictions, output_folder, logger):
     result = eval_detection_deepdrive(
         pred_boxlists=pred_boxlists,
         gt_boxlists=gt_boxlists,
-        iou_thresh=0.75,
+        iou_thresh=0.7,
         use_07_metric=True,
     )
     result_str = "mAP: {:.4f}\n".format(result["map"])
@@ -45,7 +45,7 @@ def do_deepdrive_evaluation(dataset, predictions, output_folder, logger):
     return result
 
 
-def eval_detection_deepdrive(pred_boxlists, gt_boxlists, iou_thresh=0.75, use_07_metric=False):
+def eval_detection_deepdrive(pred_boxlists, gt_boxlists, iou_thresh=0.7, use_07_metric=False):
     """Evaluate on voc dataset.
     Args:
         pred_boxlists(list[BoxList]): pred boxlist, has labels and scores fields.
@@ -65,7 +65,7 @@ def eval_detection_deepdrive(pred_boxlists, gt_boxlists, iou_thresh=0.75, use_07
     return {"ap": ap, "map": np.nanmean(ap)}
 
 
-def calc_detection_deepdrive_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.75):
+def calc_detection_deepdrive_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.7):
     """Calculate precision and recall based on evaluation code of PASCAL VOC.
     This function calculates precision and recall of
     predicted bounding boxes obtained from a dataset which has :math:`N`
