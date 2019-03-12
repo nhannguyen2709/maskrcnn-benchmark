@@ -11,6 +11,7 @@ from maskrcnn_benchmark.structures.bounding_box import BoxList
 class DeepDriveDataset(torch.utils.data.Dataset):
 
     CLASSES = (
+        "__background",
         "bike",
         "bus",
         "car",
