@@ -24,7 +24,7 @@ def main():
     parser.add_argument(
         "--confidence-threshold",
         type=float,
-        default=0.7,
+        default=0.5,
         help="Minimum score for the prediction to be shown",
     )
     parser.add_argument(
@@ -61,7 +61,7 @@ def main():
     cfg.freeze()
 
     # prepare object that handles inference plus adds predictions on top of image
-    coco_demo = DeepDriveDemo(
+    deepdrive_demo = DeepDriveDemo(
         cfg,
         confidence_threshold=args.confidence_threshold,
         show_mask_heatmaps=args.show_mask_heatmaps,
@@ -71,10 +71,9 @@ def main():
 
     start_time = time.time()
     img = cv2.imread(args.img_file)
-    composite = coco_demo.run_on_opencv_image(img)
+    composite = deepdrive_demo.run_on_opencv_image(img)
     print("Time: {:.2f} s / img".format(time.time() - start_time))
-    cv2.imshow("DeepDrive detections", composite)
-
+    cv2.imwrite('demo_' + args.img_file, composite)
 
 if __name__ == "__main__":
     main()
