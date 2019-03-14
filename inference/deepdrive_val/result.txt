@@ -1,0 +1,11 @@
+mAP: 0.5035
+bike            : 0.3272
+bus             : 0.6924
+car             : 0.8653
+motor           : 0.4328
+person          : 0.6969
+rider           : 0.0828
+traffic light   : 0.6517
+traffic sign    : 0.6668
+train           : 0.0000
+truck           : 0.6192

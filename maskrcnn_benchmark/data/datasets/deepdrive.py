@@ -24,7 +24,7 @@ class DeepDriveDataset(torch.utils.data.Dataset):
         "truck"
     )
 
-    def __init__(self, data_dir, labels_dir, split, labels_dir_tss2='labels/tss2_labels_images_train.json', use_occluded=False, transforms=None):
+    def __init__(self, data_dir, labels_dir, split, labels_dir_tss2, use_occluded=False, transforms=None):
         self.root = data_dir # 'bdd100k/'
         self.image_set = split
         self.keep_occluded = use_occluded

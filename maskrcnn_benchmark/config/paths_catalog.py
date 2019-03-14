@@ -34,11 +34,13 @@ class DatasetCatalog(object):
         "deepdrive_train": {
             "data_dir": "bdd100k/",
             "labels_dir": "labels/bdd100k_labels_images_train.json",
+            "labels_dir_tss2": "labels/tss2_labels_images_train.json",
             "split": "train"
         },
         "deepdrive_val": {
             "data_dir": "bdd100k/",
             "labels_dir": "labels/bdd100k_labels_images_val.json",
+            "labels_dir_tss2": "labels/tss2_labels_images_val.json",
             "split": "val"
         },
         "keypoints_coco_2014_train": {
@@ -146,6 +148,7 @@ class DatasetCatalog(object):
             args = dict(
                 data_dir=os.path.join(data_dir, attrs["data_dir"]),
                 labels_dir=attrs["labels_dir"],
+                labels_dir_tss2=attrs["labels_dir_tss2"],
                 split=attrs["split"]
             )
             return dict(
