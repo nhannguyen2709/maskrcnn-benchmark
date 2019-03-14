@@ -24,7 +24,7 @@ class DeepDriveDataset(torch.utils.data.Dataset):
         "truck"
     )
 
-    def __init__(self, data_dir, labels_dir, split, use_occluded=False, transforms=None):
+    def __init__(self, data_dir, labels_dir, split, labels_dir_tss2='labels/tss2_labels_images_train.json', use_occluded=False, transforms=None):
         self.root = data_dir # 'bdd100k/'
         self.image_set = split
         self.keep_occluded = use_occluded
@@ -35,7 +35,15 @@ class DeepDriveDataset(torch.utils.data.Dataset):
             self.annotations = json.load(f)
         self._imgpath = os.path.join(self.root, "images/100k", self.image_set, "%s")
 
+        if 'train' in labels_dir_tss2:
+            _annopath_tss2_train = os.path.join(self.root, labels_dir_tss2)
+            with open(_annopath_tss2_train) as f:
+                    annotations_tss2_train = json.load(f)
+            self.annotations += annotations_tss2_train
+            self._imgpath_tss2 = os.path.join(self.root, "images/tss2", "70kImages", "%s")
+        
         self.ids = [dic['name'] for dic in self.annotations]
+        self.im_infos = [dic['im_info'] for dic in self.annotations]
         self.id_to_img_map = {k: v for k, v in enumerate(self.ids)}
 
         cls = DeepDriveDataset.CLASSES
@@ -43,7 +51,10 @@ class DeepDriveDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         img_id = self.ids[index]
-        img = Image.open(self._imgpath % img_id).convert("RGB")
+        if '.jpg' in img_id:
+            img = Image.open(self._imgpath % img_id).convert("RGB")
+        elif '.bmp' in img_id:
+            img = Image.open(self._imgpath_tss2 % img_id).convert("RGB")
 
         target = self.get_groundtruth(index)
         target = target.clip_to_image(remove_empty=True)
@@ -60,7 +71,7 @@ class DeepDriveDataset(torch.utils.data.Dataset):
         img_id = self.ids[index]
         anno = list(filter(
             lambda annotations: annotations['name'] == img_id, self.annotations))[0]
-        anno = self._preprocess_annotation(anno['labels'])
+        anno = self._preprocess_annotation(anno)
 
         height, width = anno["im_info"]
         target = BoxList(anno["boxes"], (width, height), mode="xyxy")
@@ -68,12 +79,13 @@ class DeepDriveDataset(torch.utils.data.Dataset):
         target.add_field("occluded", anno["occluded"])
         return target
 
-    def _preprocess_annotation(self, target):
+    def _preprocess_annotation(self, anno):
         boxes = []
         gt_classes = []
         occluded_boxes = []
         TO_REMOVE = 1
         # Filter out segmentation annotations
+        target = anno['labels']
         target = [label for label in target if "box2d" in label.keys()]
         for obj in target:
             occluded = obj['attributes']['occluded'] == 1
@@ -97,17 +109,21 @@ class DeepDriveDataset(torch.utils.data.Dataset):
             boxes.append(bndbox)
             gt_classes.append(self.class_to_ind[name])
             occluded_boxes.append(occluded)
+        
+        im_info = (anno['im_info']['height'], anno['im_info']['width'])
 
         res = {
             "boxes": torch.tensor(boxes, dtype=torch.float32),
             "labels": torch.tensor(gt_classes),
             "occluded": torch.tensor(occluded_boxes),
-            "im_info": (720, 1280)
+            "im_info": im_info
         }
         return res
 
     def get_img_info(self, index):
-        return {"height": 720, "width": 1280}
+        img_id = self.ids[index]
+        im_info = self.im_infos[index]
+        return im_info
 
     def map_class_id_to_class_name(self, class_id):
         return DeepDriveDataset.CLASSES[class_id]
