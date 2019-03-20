@@ -43,13 +43,12 @@ class RetinaNetLossComputation(RPNLossComputation):
         self.regress_norm = regress_norm
         self.consistency = consistency
 
-    @torch.no_grad()
     def _obtain_refined_anchors(self, anchors, box_cls, box_regression, targets):
         N = len(anchors)
         refined_anchors = [] # (list[BoxList])
-        reshaped_box_regression = box_regression.reshape(N, -1, 4)
+        box_regression = box_regression.reshape(N, -1, 4)
         for box_regression_per_image, anchors_per_image in zip(
-            reshaped_box_regression, anchors):
+            box_regression, anchors):
             refined_anchors_per_image = self.box_coder.decode(box_regression_per_image, anchors_per_image.bbox)
             boxlist = BoxList(refined_anchors_per_image, anchors_per_image.size, mode='xyxy')
             refined_anchors.append(boxlist)
