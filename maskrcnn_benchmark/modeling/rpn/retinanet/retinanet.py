@@ -134,7 +134,7 @@ class RetinaNetModule(torch.nn.Module):
 
     def _forward_train(self, anchors, box_cls, box_regression, targets):
 
-        if self.loss_evaluator.consistency:
+        if self.loss_evaluator.consistent:
             loss_box_cls, loss_box_reg, refined_loss_box_cls, refined_loss_box_reg = self.loss_evaluator(
             anchors, box_cls, box_regression, targets
         )

@@ -224,6 +224,6 @@ def make_retinanet_loss_evaluator(cfg, box_coder):
         sigmoid_focal_loss,
         bbox_reg_beta = cfg.MODEL.RETINANET.BBOX_REG_BETA,
         regress_norm = cfg.MODEL.RETINANET.BBOX_REG_WEIGHT,
-        consistent = cfg.MODEL.RETINANET.consistent,
+        consistent = cfg.MODEL.RETINANET.CONSISTENT,
     )
     return loss_evaluator
