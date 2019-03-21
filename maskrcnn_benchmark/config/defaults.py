@@ -325,7 +325,12 @@ _C.MODEL.RETINANET.LOSS_ALPHA = 0.25
 _C.MODEL.RETINANET.LOSS_GAMMA = 2.0
 
 # Consistent optimization
-_C.MODEL.RETINANET.CONSISTENT = True 
+_C.MODEL.RETINANET.CONSISTENT = False 
+
+# Distillation
+_C.MODEL.RETINANET.DISTIL_ON = False
+_C.MODEL.RETINANET.TEACHER_BACKBONE_CONV_BODY = "R-101-FPN-RETINANET"
+_C.MODEL.RETINANET.TEACHER_WEIGHT = ""
 
 # Prior prob for the positives at the beginning of training. This is used to set
 # the bias init for the logits layer
