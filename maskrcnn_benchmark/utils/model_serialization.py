@@ -78,3 +78,30 @@ def load_state_dict(model, loaded_state_dict):
 
     # use strict loading
     model.load_state_dict(model_state_dict)
+
+
+def load_teacher_student_state_dict(model, loaded_teacher_state_dict, loaded_student_state_dict):
+    student_state_dict = OrderedDict()
+    teacher_backbone_state_dict = OrderedDict()
+    teacher_rpn_state_dict = OrderedDict()
+
+    for k, v in model.state_dict().items():
+        if 'teacher' not in k:
+            student_state_dict[k] = v
+        elif 'teacher' in k:
+            if 'teacher_backbone' in k:
+                teacher_backbone_state_dict[k] = v
+            elif 'teacher_rpn' in k:
+                teacher_rpn_state_dict[k] = v
+    
+    loaded_teacher_state_dict = strip_prefix_if_present(loaded_teacher_state_dict, prefix="module.")
+    loaded_student_state_dict = strip_prefix_if_present(loaded_student_state_dict, prefix="module.")
+    align_and_update_state_dicts(student_state_dict, loaded_student_state_dict)
+    align_and_update_state_dicts(teacher_backbone_state_dict, loaded_teacher_state_dict)
+    align_and_update_state_dicts(teacher_rpn_state_dict, loaded_teacher_state_dict)
+
+    new_state_dict = OrderedDict()
+    new_state_dict.update(student_state_dict)
+    new_state_dict.update(teacher_backbone_state_dict)
+    new_state_dict.update(teacher_rpn_state_dict)
+    model.load_state_dict(new_state_dict)
