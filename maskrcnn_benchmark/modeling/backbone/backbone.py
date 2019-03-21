@@ -77,3 +77,11 @@ def build_backbone(cfg):
             cfg.MODEL.BACKBONE.CONV_BODY
         )
     return registry.BACKBONES[cfg.MODEL.BACKBONE.CONV_BODY](cfg)
+
+
+def build_teacher_backbone(cfg):
+    assert cfg.MODEL.RETINANET.TEACHER_BACKBONE_CONV_BODY in registry.BACKBONES, \
+        "cfg.MODEL.RETINANET.TEACHER_BACKBONE_CONV_BODY: {} are not registered in registry".format(
+            cfg.MODEL.RETINANET.TEACHER_BACKBONE_CONV_BODY
+        )
+    return registry.BACKBONES[cfg.MODEL.RETINANET.TEACHER_BACKBONE_CONV_BODY](cfg)
