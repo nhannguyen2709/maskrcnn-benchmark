@@ -39,9 +39,6 @@ class Checkpointer(object):
 
         data = {}
         data["model"] = self.model.state_dict()
-        for k, v in data["model"].items():
-            if 'teacher' in k:
-                data["model"].pop(k)
         if self.optimizer is not None:
             data["optimizer"] = self.optimizer.state_dict()
         if self.scheduler is not None:
