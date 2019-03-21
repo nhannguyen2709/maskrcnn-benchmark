@@ -76,6 +76,56 @@ def train(cfg, local_rank, distributed):
     return model
 
 
+def distil_train(cfg, local_rank, distributed):
+    model = build_detection_model(cfg)
+    
+    optimizer = make_optimizer(cfg, model)
+    scheduler = make_lr_scheduler(cfg, optimizer)
+
+    arguments = {}
+    arguments["iteration"] = 0
+
+    output_dir = cfg.OUTPUT_DIR
+
+    save_to_disk = get_rank() == 0
+    checkpointer = DetectronCheckpointer(
+        cfg, model, optimizer, scheduler, output_dir, save_to_disk
+    )
+    extra_checkpoint_data = checkpointer.load(cfg.MODEL.WEIGHT, cfg.MODEL.RETINANET.TEACHER_WEIGHT)
+    arguments.update(extra_checkpoint_data)
+
+    device = torch.device(cfg.MODEL.DEVICE)
+    model.to(device)
+    if distributed:
+        model = torch.nn.parallel.DistributedDataParallel(
+            model, device_ids=[local_rank], output_device=local_rank,
+            # this should be removed if we update BatchNorm stats
+            broadcast_buffers=False,
+        )
+
+    data_loader = make_data_loader(
+        cfg,
+        is_train=True,
+        is_distributed=distributed,
+        start_iter=arguments["iteration"],
+    )
+
+    checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
+
+    do_train(
+        model,
+        data_loader,
+        optimizer,
+        scheduler,
+        checkpointer,
+        device,
+        checkpoint_period,
+        arguments,
+    )
+
+    return model
+
+
 def run_test(cfg, model, distributed):
     if distributed:
         model = model.module
@@ -145,7 +195,7 @@ def main():
 
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
-    cfg.freeze()
+    # cfg.freeze()
 
     output_dir = cfg.OUTPUT_DIR
     if output_dir:
@@ -164,7 +214,10 @@ def main():
         logger.info(config_str)
     logger.info("Running with config:\n{}".format(cfg))
 
-    model = train(cfg, args.local_rank, args.distributed)
+    if cfg.MODEL.RETINANET.DISTIL_ON:
+        model = distil_train(cfg, args.local_rank, args.distributed)
+    else:
+        model = train(cfg, args.local_rank, args.distributed)
 
     if not args.skip_test:
         run_test(cfg, model, args.distributed)
