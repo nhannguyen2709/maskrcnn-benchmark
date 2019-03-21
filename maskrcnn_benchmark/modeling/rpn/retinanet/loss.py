@@ -27,7 +27,7 @@ class RetinaNetLossComputation(RPNLossComputation):
                  sigmoid_focal_loss,
                  bbox_reg_beta=0.11,
                  regress_norm=1.0,
-                 consistency=True):
+                 consistent=True):
         """
         Arguments:
             proposal_matcher (Matcher)
@@ -41,7 +41,7 @@ class RetinaNetLossComputation(RPNLossComputation):
         self.generate_labels_func = generate_labels_func
         self.discard_cases = ['between_thresholds']
         self.regress_norm = regress_norm
-        self.consistency = consistency
+        self.consistent = consistent
 
     def _obtain_refined_anchors(self, anchors, box_regression, targets):
         N = len(anchors)
@@ -92,8 +92,8 @@ class RetinaNetLossComputation(RPNLossComputation):
             labels
         ) / (pos_inds.numel() + N)
 
-        # Consistency optimization loss here
-        if self.consistency:
+        # consistent optimization loss here
+        if self.consistent:
             refined_labels, refined_regression_targets = self._obtain_refined_anchors(anchors, box_regression, targets)
             refined_labels = torch.cat(refined_labels, dim=0)
             refined_regression_targets = torch.cat(refined_regression_targets, dim=0)
@@ -224,6 +224,6 @@ def make_retinanet_loss_evaluator(cfg, box_coder):
         sigmoid_focal_loss,
         bbox_reg_beta = cfg.MODEL.RETINANET.BBOX_REG_BETA,
         regress_norm = cfg.MODEL.RETINANET.BBOX_REG_WEIGHT,
-        consistency = cfg.MODEL.RETINANET.CONSISTENCY,
+        consistent = cfg.MODEL.RETINANET.consistent,
     )
     return loss_evaluator
