@@ -324,8 +324,8 @@ _C.MODEL.RETINANET.LOSS_ALPHA = 0.25
 # Focal loss parameter: gamma
 _C.MODEL.RETINANET.LOSS_GAMMA = 2.0
 
-# Consistency optimization
-_C.MODEL.RETINANET.CONSISTENCY = True 
+# Consistent optimization
+_C.MODEL.RETINANET.CONSISTENT = True 
 
 # Prior prob for the positives at the beginning of training. This is used to set
 # the bias init for the logits layer
