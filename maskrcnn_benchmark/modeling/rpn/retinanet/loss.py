@@ -185,7 +185,7 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
         
         teacher_labels = torch.cat(teacher_labels, dim=0)
         teacher_regression_targets = torch.cat(teacher_regression_targets, dim=0)
-        teacher_pos_inds = torch.nonzeros(teacher_labels > 0).squeeze(1)
+        teacher_pos_inds = torch.nonzero(teacher_labels > 0).squeeze(1)
 
         distil_retinanet_regression_loss = smooth_l1_loss(
             box_regression[teacher_pos_inds],
@@ -193,6 +193,8 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
             beta=self.bbox_reg_beta,
             size_average=False,
         ) / (max(1, teacher_pos_inds.numel() * self.regress_norm))
+
+        teacher_labels = teacher_labels.int()
 
         distil_retinanet_cls_loss = self.box_cls_loss_func(
             box_cls,
@@ -217,13 +219,23 @@ def make_retinanet_loss_evaluator(cfg, box_coder):
         cfg.MODEL.RETINANET.LOSS_ALPHA
     )
 
-    loss_evaluator = RetinaNetLossComputation(
-        matcher,
-        box_coder,
-        generate_retinanet_labels,
-        sigmoid_focal_loss,
-        bbox_reg_beta = cfg.MODEL.RETINANET.BBOX_REG_BETA,
-        regress_norm = cfg.MODEL.RETINANET.BBOX_REG_WEIGHT,
-        consistent = cfg.MODEL.RETINANET.CONSISTENT,
-    )
+    if cfg.MODEL.RETINANET.DISTIL_ON:
+        loss_evaluator = RetinaNetDistilLossComputation(
+            matcher,
+            box_coder,
+            generate_retinanet_labels,
+            sigmoid_focal_loss,
+            bbox_reg_beta = cfg.MODEL.RETINANET.BBOX_REG_BETA,
+            regress_norm = cfg.MODEL.RETINANET.BBOX_REG_WEIGHT,
+        )
+    else:
+        loss_evaluator = RetinaNetLossComputation(
+            matcher,
+            box_coder,
+            generate_retinanet_labels,
+            sigmoid_focal_loss,
+            bbox_reg_beta = cfg.MODEL.RETINANET.BBOX_REG_BETA,
+            regress_norm = cfg.MODEL.RETINANET.BBOX_REG_WEIGHT,
+            consistent = cfg.MODEL.RETINANET.CONSISTENT,
+        )
     return loss_evaluator
