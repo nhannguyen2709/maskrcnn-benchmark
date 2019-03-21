@@ -5,6 +5,7 @@ import os
 import torch
 
 from maskrcnn_benchmark.utils.model_serialization import load_state_dict
+from maskrcnn_benchmark.utils.model_serialization import load_teacher_student_state_dict
 from maskrcnn_benchmark.utils.c2_model_loading import load_c2_format
 from maskrcnn_benchmark.utils.imports import import_file
 from maskrcnn_benchmark.utils.model_zoo import cache_url
@@ -38,6 +39,9 @@ class Checkpointer(object):
 
         data = {}
         data["model"] = self.model.state_dict()
+        for k, v in data["model"].items():
+            if 'teacher' in k:
+                data["model"].pop(k)
         if self.optimizer is not None:
             data["optimizer"] = self.optimizer.state_dict()
         if self.scheduler is not None:
@@ -49,7 +53,7 @@ class Checkpointer(object):
         torch.save(data, save_file)
         self.tag_last_checkpoint(save_file)
 
-    def load(self, f=None):
+    def load(self, f=None, f_teacher=None):
         if self.has_checkpoint():
             # override argument with existing checkpoint
             f = self.get_checkpoint_file()
@@ -59,7 +63,11 @@ class Checkpointer(object):
             return {}
         self.logger.info("Loading checkpoint from {}".format(f))
         checkpoint = self._load_file(f)
-        self._load_model(checkpoint)
+        if f_teacher:
+            teacher_checkpoint = self._load_file(f_teacher)
+            self._load_model(checkpoint, teacher_checkpoint)
+        else:
+            self._load_model(checkpoint)
         if "optimizer" in checkpoint and self.optimizer:
             self.logger.info("Loading optimizer from {}".format(f))
             self.optimizer.load_state_dict(checkpoint.pop("optimizer"))
@@ -94,8 +102,13 @@ class Checkpointer(object):
     def _load_file(self, f):
         return torch.load(f, map_location=torch.device("cpu"))
 
-    def _load_model(self, checkpoint):
-        load_state_dict(self.model, checkpoint.pop("model"))
+    def _load_model(self, checkpoint, teacher_checkpoint=None):
+        if teacher_checkpoint:
+            load_teacher_student_state_dict(self.model, 
+                teacher_checkpoint.pop("model"), 
+                checkpoint.pop("model"))
+        else:
+            load_state_dict(self.model, checkpoint.pop("model"))
 
 
 class DetectronCheckpointer(Checkpointer):
