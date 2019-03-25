@@ -6,7 +6,7 @@ file
 import torch
 from torch.nn import functional as F
 
-from ..utils import concat_box_prediction_layers
+from ..utils import concat_box_prediction_layers, permute_and_flatten
 
 from maskrcnn_benchmark.layers import smooth_l1_loss
 from maskrcnn_benchmark.layers import SigmoidFocalLoss
@@ -43,17 +43,22 @@ class RetinaNetLossComputation(RPNLossComputation):
         self.regress_norm = regress_norm
         self.consistent = consistent
 
-    def _obtain_refined_anchors(self, anchors, box_regression, targets):
-        N = len(anchors)
-        refined_anchors = [] # (list[BoxList])
-        box_regression = box_regression.reshape(N, -1, 4)
-        for box_regression_per_image, anchors_per_image in zip(
-            box_regression, anchors):
-            refined_anchors_per_image = self.box_coder.decode(box_regression_per_image, anchors_per_image.bbox)
-            boxlist = BoxList(refined_anchors_per_image, anchors_per_image.size, mode='xyxy')
-            refined_anchors.append(boxlist)
-        refined_labels, refined_regression_targets = self.prepare_targets(refined_anchors, targets)       
-        return refined_labels, refined_regression_targets
+    def _refine_anchors(self, anchors, box_regression):
+        anchors = list(zip(*anchors))
+        refined_anchors = []
+        for a, b in zip(anchors, box_regression):
+            N, _, H, W = b.shape
+            A = b.size(1) // 4
+            b = permute_and_flatten(b, N, A, 4, H, W)
+            b = b.reshape(N, -1, 4)
+            results = []
+            for per_anchors, per_box_regression in zip(a, b):
+                per_refined_anchors = self.box_coder.decode(per_box_regression, per_anchors.bbox)
+                per_boxlist = BoxList(per_refined_anchors, per_anchors.size, mode='xyxy')
+                results.append(per_boxlist)
+            refined_anchors.append(results)
+        refined_anchors = list(zip(*refined_anchors))
+        return refined_anchors
 
     def __call__(self, anchors, box_cls, box_regression, targets):
         """
@@ -67,6 +72,8 @@ class RetinaNetLossComputation(RPNLossComputation):
             retinanet_cls_loss (Tensor)
             retinanet_regression_loss (Tensor
         """
+        if self.consistent:
+            refined_anchors = self._refine_anchors(anchors, box_regression)
         anchors = [cat_boxlist(anchors_per_image) for anchors_per_image in anchors]
         labels, regression_targets = self.prepare_targets(anchors, targets)
 
@@ -92,9 +99,11 @@ class RetinaNetLossComputation(RPNLossComputation):
             labels
         ) / (pos_inds.numel() + N)
 
-        # consistent optimization loss here
+        # consistent optimization loss
         if self.consistent:
-            refined_labels, refined_regression_targets = self._obtain_refined_anchors(anchors, box_regression, targets)
+            refined_anchors = [cat_boxlist(refined_anchors_per_image) 
+                for refined_anchors_per_image in refined_anchors]
+            refined_labels, refined_regression_targets = self.prepare_targets(refined_anchors, targets)
             refined_labels = torch.cat(refined_labels, dim=0)
             refined_regression_targets = torch.cat(refined_regression_targets, dim=0)
             refined_pos_inds = torch.nonzero(refined_labels > 0).squeeze(1)
@@ -113,8 +122,8 @@ class RetinaNetLossComputation(RPNLossComputation):
                 refined_labels
             ) / (refined_pos_inds.numel() + N)
             return retinanet_cls_loss, retinanet_regression_loss, refined_cls_loss, refined_regression_loss
-        else:
-            return retinanet_cls_loss, retinanet_regression_loss
+
+        return retinanet_cls_loss, retinanet_regression_loss
 
 
 class RetinaNetDistilLossComputation(RetinaNetLossComputation):
@@ -141,7 +150,7 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
         self.discard_cases = ['between_thresholds']
         self.regress_norm = regress_norm
 
-    def __call__(self, anchors, box_cls, box_regression, teacher_box_cls, teacher_box_regression, targets):
+    def __call__(self, anchors, box_cls, box_regression, teacher_box_regression, targets):
         """
         Arguments:
             anchors (list[BoxList])
@@ -153,6 +162,11 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
             retinanet_cls_loss (Tensor)
             retinanet_regression_loss (Tensor
         """
+        teacher_anchors = self._refine_anchors(anchors, box_regression)
+        teacher_anchors = [cat_boxlist(teacher_anchors_per_image)
+            for teacher_anchors_per_image in teacher_anchors]
+        teacher_labels, teacher_regression_targets = self.prepare_targets(teacher_anchors, targets)
+        
         anchors = [cat_boxlist(anchors_per_image) for anchors_per_image in anchors]
         labels, regression_targets = self.prepare_targets(anchors, targets)
 
@@ -178,11 +192,6 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
             labels
         ) / (pos_inds.numel() + N)
 
-        _, teacher_box_regression = \
-                concat_box_prediction_layers(teacher_box_cls, teacher_box_regression)
-        teacher_labels, teacher_regression_targets = self._obtain_refined_anchors(anchors,
-            teacher_box_regression, targets)
-        
         teacher_labels = torch.cat(teacher_labels, dim=0)
         teacher_regression_targets = torch.cat(teacher_regression_targets, dim=0)
         teacher_pos_inds = torch.nonzero(teacher_labels > 0).squeeze(1)
