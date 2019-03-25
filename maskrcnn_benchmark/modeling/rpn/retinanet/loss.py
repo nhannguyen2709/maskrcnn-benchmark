@@ -166,7 +166,7 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
         teacher_anchors = [cat_boxlist(teacher_anchors_per_image)
             for teacher_anchors_per_image in teacher_anchors]
         teacher_labels, teacher_regression_targets = self.prepare_targets(teacher_anchors, targets)
-        
+
         anchors = [cat_boxlist(anchors_per_image) for anchors_per_image in anchors]
         labels, regression_targets = self.prepare_targets(anchors, targets)
 
