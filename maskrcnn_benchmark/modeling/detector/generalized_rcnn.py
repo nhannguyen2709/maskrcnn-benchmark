@@ -11,6 +11,7 @@ from maskrcnn_benchmark.structures.image_list import to_image_list
 from ..backbone import build_backbone
 from ..backbone import build_teacher_backbone
 from ..rpn.rpn import build_rpn
+from ..rpn.utils import concat_box_prediction_layers
 from ..roi_heads.roi_heads import build_roi_heads
 
 
@@ -93,8 +94,8 @@ class GeneralizedRCNNDistil(nn.Module):
 
         for p in self.teacher_backbone.parameters():
             p.requires_grad = False
-        for p in self.teacher_rpn.parameters():
-            p.requires_grad = False
+        # for p in self.teacher_rpn.parameters():
+        #     p.requires_grad = False
 
     def forward(self, images, targets=None):
         """
@@ -116,13 +117,13 @@ class GeneralizedRCNNDistil(nn.Module):
         features = self.backbone(images.tensors)
 
         self.teacher_backbone.eval()
-        self.teacher_rpn.eval()
+        # self.teacher_rpn.eval()
         teacher_features = self.teacher_backbone(images.tensors)
         teacher_box_cls, teacher_box_regression = self.teacher_rpn.head(
             teacher_features)
 
         proposals, proposal_losses = self.rpn(
-            images, features, teacher_box_cls, teacher_box_regression, targets)
+            images, features, teacher_box_regression, targets)
         if self.roi_heads:
             x, result, detector_losses = self.roi_heads(
                 features, proposals, targets)
@@ -137,3 +138,5 @@ class GeneralizedRCNNDistil(nn.Module):
             losses.update(detector_losses)
             losses.update(proposal_losses)
             return losses
+        
+        return result
