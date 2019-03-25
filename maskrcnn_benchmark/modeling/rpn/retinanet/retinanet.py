@@ -8,6 +8,7 @@ from .loss import make_retinanet_loss_evaluator
 from ..anchor_generator import make_anchor_generator_retinanet
 
 from maskrcnn_benchmark.modeling.box_coder import BoxCoder
+from maskrcnn_benchmark.structures.boxlist_ops import cat_boxlist
 
 
 class RetinaNetHead(torch.nn.Module):
@@ -110,8 +111,7 @@ class RetinaNetModule(torch.nn.Module):
         self.box_selector_test = box_selector_test
         self.loss_evaluator = loss_evaluator
 
-    def forward(self, images, features, teacher_box_cls=None,
-                teacher_box_regression=None, targets=None):
+    def forward(self, images, features, teacher_box_regression=None, targets=None):
         """
         Arguments:
             images (ImageList): images for which we want to compute the predictions
@@ -129,15 +129,18 @@ class RetinaNetModule(torch.nn.Module):
         box_cls, box_regression = self.head(features)
         anchors = self.anchor_generator(images, features)
 
-        if self.training:
-            if teacher_box_regression:
-                return self._distil_forward_train(
-                    anchors, box_cls, box_regression, teacher_box_cls, teacher_box_regression, targets)
+        if teacher_box_regression is None:
+            if self.training:
+                return self._forward_train(anchors, box_cls, box_regression, targets)
             else:
-                return self._forward_train(
-                    anchors, box_cls, box_regression, targets)
+                return self._forward_test(anchors, box_cls, box_regression)
         else:
-            return self._forward_test(anchors, box_cls, box_regression)
+            if self.training:
+                return self._distil_forward_train(anchors, box_cls, box_regression,
+                    teacher_box_regression, targets)
+            else:
+                return self._distil_forward_test(anchors, box_cls, box_regression,
+                    teacher_box_regression)
 
     def _forward_train(self, anchors, box_cls, box_regression, targets):
 
@@ -166,18 +169,23 @@ class RetinaNetModule(torch.nn.Module):
         return boxes, {}
 
     def _distil_forward_train(self, anchors, box_cls, box_regression,
-                              teacher_box_cls, teacher_box_regression, targets):
+                              teacher_box_regression, targets):
 
         loss_box_cls, loss_box_reg, distil_loss_box_cls, distil_loss_box_reg = self.loss_evaluator(
-            anchors, box_cls, box_regression, teacher_box_cls, teacher_box_regression, targets
+            anchors, box_cls, box_regression, teacher_box_regression, targets
         )
         losses = {
-            "loss_retina_cls": loss_box_cls,
-            "loss_retina_reg": loss_box_reg,
-            "distil_loss_retina_cls": distil_loss_box_cls,
-            "distil_loss_retina_reg": distil_loss_box_reg
+            "loss_retina_cls": loss_box_cls * 0.5,
+            "loss_retina_reg": loss_box_reg * 0.5,
+            "distil_loss_retina_cls": distil_loss_box_cls * 0.5,
+            "distil_loss_retina_reg": distil_loss_box_reg * 0.5
         }
         return anchors, losses
+    
+    def _distil_forward_test(self, anchors, box_cls, box_regression, teacher_box_regression):
+        refined_anchors = self.loss_evaluator._refine_anchors(anchors, teacher_box_regression)
+        refined_boxes = self.box_selector_test(refined_anchors, box_cls, box_regression)
+        return refined_boxes, {}
 
 
 def build_retinanet(cfg, in_channels):
