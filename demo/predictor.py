@@ -471,6 +471,15 @@ class DeepDriveDemo(object):
         result = self.overlay_class_names(result, top_predictions)
 
         return result
+    
+    def _dump_box_cls_box_reg(self, original_image):
+        image = self.transforms(original_image)
+        image_list = to_image_list(image, self.cfg.DATALOADER.SIZE_DIVISIBILITY)
+        image_list = image_list.to(self.device)
+        with torch.no_grad():
+            features = self.model.backbone(image_list.tensors)
+            box_cls, box_regression = self.model.rpn.head(features)
+        return box_cls, box_regression
 
     def compute_prediction(self, original_image):
         """

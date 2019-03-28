@@ -6,6 +6,7 @@ from maskrcnn_benchmark.config import cfg
 from predictor import DeepDriveDemo
 
 import time
+from tqdm import tqdm
 
 
 def main():
@@ -61,19 +62,33 @@ def main():
     cfg.freeze()
 
     # prepare object that handles inference plus adds predictions on top of image
+#    deepdrive_demo = DeepDriveDemo(
+#        cfg,
+#        confidence_threshold=args.confidence_threshold,
+#        show_mask_heatmaps=args.show_mask_heatmaps,
+#        masks_per_dim=args.masks_per_dim,
+#        min_image_size=args.min_image_size,
+#    )
+
+#    start_time = time.time()
+#    img = cv2.imread(args.img_file)
+#    composite = deepdrive_demo.run_on_opencv_image(img)
+#    print("Time: {:.2f} s / img".format(time.time() - start_time))
+#    cv2.imwrite('demo_' + args.img_file, composite)
+
     deepdrive_demo = DeepDriveDemo(
         cfg,
         confidence_threshold=args.confidence_threshold,
         show_mask_heatmaps=args.show_mask_heatmaps,
         masks_per_dim=args.masks_per_dim,
-        min_image_size=args.min_image_size,
+        min_image_size=640,
     )
-
-    start_time = time.time()
-    img = cv2.imread(args.img_file)
-    composite = deepdrive_demo.run_on_opencv_image(img)
-    print("Time: {:.2f} s / img".format(time.time() - start_time))
-    cv2.imwrite('demo_' + args.img_file, composite)
+    data_root = 'datasets/bdd100k/images/100k/train/'
+    for img_file in tqdm(os.listdir(data_root)):
+        img_path = os.path.join(data_root, img_file)
+        img = cv2.imread(img_path)
+        box_cls, box_regression = deepdrive_demo._dump_box_cls_box_reg(img)
+        print(box_cls.shape, box_regression.shape, img.shape)
 
 if __name__ == "__main__":
     main()
