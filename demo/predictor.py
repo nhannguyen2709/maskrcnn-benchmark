@@ -439,7 +439,8 @@ class DeepDriveDemo(object):
         transform = T.Compose(
             [
                 T.ToPILImage(),
-                T.Resize(self.min_image_size),
+                # T.Resize(self.min_image_size),
+                T.Resize((self.min_image_size, 1280)),
                 T.ToTensor(),
                 to_bgr_transform,
                 normalize_transform,
@@ -478,8 +479,10 @@ class DeepDriveDemo(object):
         image_list = image_list.to(self.device)
         with torch.no_grad():
             features = self.model.backbone(image_list.tensors)
+            anchors = self.model.rpn.anchor_generator(image_list, features)
             box_cls, box_regression = self.model.rpn.head(features)
-        return box_cls, box_regression
+            boxes = self.model.rpn.box_selector_test(anchors, box_cls, box_regression)
+        return box_cls, box_regression, boxes
 
     def compute_prediction(self, original_image):
         """

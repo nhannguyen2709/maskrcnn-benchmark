@@ -5,7 +5,9 @@ import cv2
 from maskrcnn_benchmark.config import cfg
 from predictor import DeepDriveDemo
 
+import numpy as np
 import os
+import pickle
 import time
 from tqdm import tqdm
 
@@ -84,12 +86,38 @@ def main():
         masks_per_dim=args.masks_per_dim,
         min_image_size=640,
     )
-    data_root = 'datasets/bdd100k/images/100k/train/'
+    # data_root = 'datasets/bdd100k/images/100k/train/'
+    # save_dir = data_root.replace("train", "train_teacher_pkl")
+    data_root = 'datasets/bdd100k/images/100k/val/'
+    save_dir = data_root.replace("val", "val_teacher_pkl")
+
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
     for img_file in tqdm(os.listdir(data_root)):
         img_path = os.path.join(data_root, img_file)
         img = cv2.imread(img_path)
-        box_cls, box_regression = deepdrive_demo._dump_box_cls_box_reg(img)
-        print(box_cls.shape, box_regression.shape, img.shape)
+        box_cls, box_regression, boxes = deepdrive_demo._dump_box_cls_box_reg(img)
+        boxes = [o.to(deepdrive_demo.cpu_device) for o in boxes]
+        boxes = boxes[0]
+        # height, width = img.shape[:-1]
+        # boxes = boxes.resize((width, height))
+        boxes = deepdrive_demo.select_top_predictions(boxes)
+        # overlay_img = deepdrive_demo.overlay_boxes(img, boxes)
+        # cv2.imwrite("demo" + img_file, overlay_img)
+        bboxes = boxes.bbox.numpy()
+        labels = boxes.get_field("labels").numpy()
+        box_cls = [b.cpu().numpy() for b in box_cls]
+        # box_regression = [b.cpu().numpy() for b in box_regression]
+        save_dict = {}
+        # save_dict["box_cls"] = box_cls
+        # save_dict["box_reg"] = box_regression
+        save_dict["box_cls"] = [b.astype(dtype=np.float16) for b in box_cls[1:]]
+        save_dict["bboxes"] = bboxes.astype(dtype=np.float16)
+        save_dict["labels"] = labels.astype(dtype=np.float16)
+
+        save_path = os.path.join(save_dir, img_file.replace(".jpg", ".pkl"))
+        with open(save_path, "wb") as f:
+            pickle.dump(save_dict, f)
 
 if __name__ == "__main__":
     main()
