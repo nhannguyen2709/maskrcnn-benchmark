@@ -89,13 +89,14 @@ class GeneralizedRCNNDistil(nn.Module):
         cfg_clone.MODEL.RESNETS.STRIDE_IN_1X1 = False
         cfg_clone.MODEL.RESNETS.NUM_GROUPS = 32
         cfg_clone.MODEL.RESNETS.WIDTH_PER_GROUP = 8
+        cfg_clone.MODEL.RETINANET.DISTIL_ON = False
         self.teacher_backbone = build_teacher_backbone(cfg_clone)
         self.teacher_rpn = build_rpn(cfg_clone, self.teacher_backbone.out_channels)
 
         for p in self.teacher_backbone.parameters():
             p.requires_grad = False
-        # for p in self.teacher_rpn.parameters():
-        #     p.requires_grad = False
+        for p in self.teacher_rpn.parameters():
+            p.requires_grad = False
 
     def forward(self, images, targets=None):
         """
@@ -117,13 +118,14 @@ class GeneralizedRCNNDistil(nn.Module):
         features = self.backbone(images.tensors)
 
         self.teacher_backbone.eval()
-        # self.teacher_rpn.eval()
+        self.teacher_rpn.eval()
         teacher_features = self.teacher_backbone(images.tensors)
         teacher_box_cls, teacher_box_regression = self.teacher_rpn.head(
             teacher_features)
 
         proposals, proposal_losses = self.rpn(
-            images, features, teacher_box_regression, targets)
+            images, features, teacher_features,
+            teacher_box_cls, teacher_box_regression, targets)
         if self.roi_heads:
             x, result, detector_losses = self.roi_heads(
                 features, proposals, targets)

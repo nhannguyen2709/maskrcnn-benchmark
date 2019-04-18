@@ -10,6 +10,8 @@ from ..utils import concat_box_prediction_layers, permute_and_flatten
 
 from maskrcnn_benchmark.layers import smooth_l1_loss
 from maskrcnn_benchmark.layers import SigmoidFocalLoss
+from maskrcnn_benchmark.layers import SoftCrossEntropyLoss, l2_bounded_regression_loss, l2_hint_loss
+from maskrcnn_benchmark.layers.distil_loss import sigmoid_adapt_distill_loss_cpu
 from maskrcnn_benchmark.modeling.matcher import Matcher
 from maskrcnn_benchmark.modeling.utils import cat
 from maskrcnn_benchmark.structures.bounding_box import BoxList
@@ -134,6 +136,7 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
     def __init__(self, proposal_matcher, box_coder,
                  generate_labels_func,
                  sigmoid_focal_loss,
+                 soft_crossentropy_loss,
                  bbox_reg_beta=0.11,
                  regress_norm=1.0):
         """
@@ -144,13 +147,17 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
         self.proposal_matcher = proposal_matcher
         self.box_coder = box_coder
         self.box_cls_loss_func = sigmoid_focal_loss
+        self.soft_distil_loss_func = soft_crossentropy_loss
         self.bbox_reg_beta = bbox_reg_beta
         self.copied_fields = ['labels']
         self.generate_labels_func = generate_labels_func
         self.discard_cases = ['between_thresholds']
         self.regress_norm = regress_norm
 
-    def __call__(self, anchors, box_cls, box_regression, teacher_box_regression, targets):
+    def __call__(self, anchors, box_cls, box_regression, 
+        adapted_student_features, teacher_features, 
+        teacher_box_cls, teacher_box_regression, 
+        targets):
         """
         Arguments:
             anchors (list[BoxList])
@@ -162,10 +169,10 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
             retinanet_cls_loss (Tensor)
             retinanet_regression_loss (Tensor
         """
-        teacher_anchors = self._refine_anchors(anchors, box_regression)
-        teacher_anchors = [cat_boxlist(teacher_anchors_per_image)
-            for teacher_anchors_per_image in teacher_anchors]
-        teacher_labels, teacher_regression_targets = self.prepare_targets(teacher_anchors, targets)
+        # teacher_anchors = self._refine_anchors(anchors, teacher_box_regression)
+        # teacher_anchors = [cat_boxlist(teacher_anchors_per_image)
+        #     for teacher_anchors_per_image in teacher_anchors]
+        # teacher_labels, teacher_regression_targets = self.prepare_targets(teacher_anchors, targets)
 
         anchors = [cat_boxlist(anchors_per_image) for anchors_per_image in anchors]
         labels, regression_targets = self.prepare_targets(anchors, targets)
@@ -173,10 +180,13 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
         N = len(labels)
         box_cls, box_regression = \
                 concat_box_prediction_layers(box_cls, box_regression)
+        teacher_box_cls, teacher_box_regression = \
+                concat_box_prediction_layers(teacher_box_cls, teacher_box_regression)
 
         labels = torch.cat(labels, dim=0)
         regression_targets = torch.cat(regression_targets, dim=0)
         pos_inds = torch.nonzero(labels > 0).squeeze(1)
+        bg_inds = torch.nonzero(labels == 0).squeeze(1)
 
         retinanet_regression_loss = smooth_l1_loss(
             box_regression[pos_inds],
@@ -192,24 +202,31 @@ class RetinaNetDistilLossComputation(RetinaNetLossComputation):
             labels
         ) / (pos_inds.numel() + N)
 
-        teacher_labels = torch.cat(teacher_labels, dim=0)
-        teacher_regression_targets = torch.cat(teacher_regression_targets, dim=0)
-        teacher_pos_inds = torch.nonzero(teacher_labels > 0).squeeze(1)
-
-        distil_retinanet_regression_loss = smooth_l1_loss(
-            box_regression[teacher_pos_inds],
-            teacher_regression_targets[teacher_pos_inds],
-            beta=self.bbox_reg_beta,
+        # soft_distil_loss = self.soft_distil_loss_func(
+        #     box_cls, 
+        #     teacher_box_cls, 
+        #     bg_inds, 
+        #     pos_inds
+        #     ) / (bg_inds.numel() + pos_inds.numel() + N)
+        soft_distil_loss = sigmoid_adapt_distill_loss_cpu(box_cls, 
+            teacher_box_cls)
+        teacher_bounded_regression_loss = l2_bounded_regression_loss(
+            box_regression[pos_inds], 
+            teacher_box_regression[pos_inds],
+            regression_targets[pos_inds],
             size_average=False,
-        ) / (max(1, teacher_pos_inds.numel() * self.regress_norm))
+            ) / (max(1, pos_inds.numel() * self.regress_norm))
+        hint_loss = l2_hint_loss(
+            adapted_student_features, 
+            teacher_features)
 
-        teacher_labels = teacher_labels.int()
-
-        distil_retinanet_cls_loss = self.box_cls_loss_func(
-            box_cls,
-            teacher_labels
-        ) / (teacher_pos_inds.numel() + N)
-        return retinanet_cls_loss, retinanet_regression_loss, distil_retinanet_cls_loss, distil_retinanet_regression_loss
+        mu = 0.5
+        nu = 0.5
+        gamma = 1.
+        cls_loss = mu * retinanet_cls_loss + (1. - mu) * soft_distil_loss
+        reg_loss = retinanet_regression_loss + nu * teacher_bounded_regression_loss
+        hint_loss = gamma * hint_loss
+        return cls_loss, reg_loss, hint_loss
 
 
 def generate_retinanet_labels(matched_targets):
@@ -227,6 +244,9 @@ def make_retinanet_loss_evaluator(cfg, box_coder):
         cfg.MODEL.RETINANET.LOSS_GAMMA,
         cfg.MODEL.RETINANET.LOSS_ALPHA
     )
+    soft_crossentropy_loss = SoftCrossEntropyLoss(
+
+    )
 
     if cfg.MODEL.RETINANET.DISTIL_ON:
         loss_evaluator = RetinaNetDistilLossComputation(
@@ -234,6 +254,7 @@ def make_retinanet_loss_evaluator(cfg, box_coder):
             box_coder,
             generate_retinanet_labels,
             sigmoid_focal_loss,
+            soft_crossentropy_loss,
             bbox_reg_beta = cfg.MODEL.RETINANET.BBOX_REG_BETA,
             regress_norm = cfg.MODEL.RETINANET.BBOX_REG_WEIGHT,
         )
